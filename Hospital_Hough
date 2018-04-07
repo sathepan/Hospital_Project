@@ -1,0 +1,186 @@
+from Tkinter import Tk, Label, Button
+import cv2
+import numpy as np
+#import imutils
+#used for rezing frame
+from collections import deque
+
+
+class HospitalGUI:
+    def __init__(self, master):
+        self.master = master
+        master.title("Hough Transform Method")
+        
+        
+        self.labelf = Label(master, text="Choose your Selection of the Video to Track!")
+        self.labelf.pack()
+        
+        self.labelv = Label(master, text=self.videofile + " selected" )
+        self.labelv.pack()
+        
+        self.video1_button = Button(master, text="Video 1", command=self.setvideo1)
+        self.video1_button.pack()
+        
+        self.video2_button = Button(master, text="Video 2", command=self.setvideo2)
+        self.video2_button.pack()
+        
+        self.video3_button = Button(master, text="Video 3", command=self.setvideo3)
+        self.video3_button.pack()
+        
+        self.video4_button = Button(master, text="Video 4", command=self.setvideo4)
+        self.video4_button.pack()
+        
+        self.video5_button = Button(master, text="Video 5", command=self.setvideo5)
+        self.video5_button.pack()
+        
+        
+        self.labelc = Label(master, text="Choose your Selection of Colour to Track!")
+        self.labelc.pack()
+
+        self.red_button = Button(master, text="Track Red", command=self.redtrack)
+        self.red_button.pack()
+        
+        self.blue_button = Button(master, text="Track Blue", command=self.bluetrack)
+        self.blue_button.pack()
+    
+    
+    videofile = "4.mp4"
+    buffersize = 64
+    
+    def TrackColourCircle(self, videofile, buffersize, boolblueflag):
+        videocam = cv2.VideoCapture(videofile)
+        cursor_points=deque(maxlen=buffersize)
+        
+        Upperbound_blue=(130,255,255)
+        #Upperbound_red=(179, 255, 255)
+        #Lowerbound_red = (0, 125, 125)
+        Lowerbound_blue = (110, 100, 100)
+        lower_blue = np.array([110, 50, 50])
+        higher_blue = np.array([130, 255, 255])
+        Upperbound_red=(10, 160, 160 )
+        #Upperbound_red=(179, 255, 255)
+        #Lowerbound_red = (0, 125, 125)
+        Lowerbound_red = (0, 50, 50)
+        # lower mask (0-10)
+        lower_red1 = np.array([0,50,50])
+        upper_red1 = np.array([10,255,255])
+        lower_red2 = np.array([170,50,50])
+        upper_red2 = np.array([180,255,255])
+        
+        while True:
+            (boolsuccess, frame) = videocam.read()
+            #2 parameters, first one says if the frame was successfully loaded
+            #The second parameter is the actual frame from the recording
+            #If I find that the successfully loaded parameter is set to false then that means the recording is done
+            if not boolsuccess:
+                break
+            #frame = cv2.resize(frame, (:, 500)) 
+            #frame=imutils.resize(frame, width = 500)
+            frame_gaussian = cv2.GaussianBlur(frame, (3, 3), 0)
+            # converting BGR to HSV
+            hsv = cv2.cvtColor(frame_gaussian, cv2.COLOR_BGR2HSV)
+            if boolblueflag==0:
+                #ROI1 = cv2.inRange(hsv, Lowerbound_red, Upperbound_red)
+                ROI = cv2.inRange(hsv, Lowerbound_red, Upperbound_red)
+#                ROI2 = cv2.inRange(hsv, lower_red2, upper_red2)
+#                ROI = ROI1+ROI2
+                res_red = cv2.bitwise_and(frame_gaussian,frame_gaussian, mask=ROI)
+                red_s_gray = cv2.cvtColor(res_red, cv2.COLOR_BGR2GRAY)
+                th3 = cv2.adaptiveThreshold(red_s_gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
+                        cv2.THRESH_BINARY,13,8)
+                canny_edge = cv2.Canny(red_s_gray, 50, 240)
+                #ROI=cv2.inRange(hsv_frame, Lowerbound_red, Upperbound_red)
+                
+            if boolblueflag==1:
+                ROI=cv2.inRange(hsv, lower_blue, higher_blue)
+                #blue_range = cv2.inRange(hsv, lower_blue, higher_blue)
+                res_blue = cv2.bitwise_and(frame_gaussian,frame_gaussian, mask=ROI)
+                blue_s_gray = cv2.cvtColor(res_blue, cv2.COLOR_BGR2GRAY)
+                th3 = cv2.adaptiveThreshold(blue_s_gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
+                        cv2.THRESH_BINARY,13,8)
+                canny_edge = cv2.Canny(blue_s_gray, 50, 240)
+            # the range of blue color in HSV
+            
+            # getting the range of blue color in frame
+            
+            cv2.imshow("canny edge", canny_edge)
+            cv2.imshow("adaptive thresholding", th3)
+            floor_circle_center = None # intialization of center needs to be here
+            circles = cv2.HoughCircles(th3, cv2.HOUGH_GRADIENT, 1, 60, 50, 35, 16, 0)
+            #circles = cv2.HoughCircles(canny_edge, cv2.HOUGH_GRADIENT,1,20,param1=50,param2=30,minRadius=0,maxRadius=50)
+           
+                # applying HoughCircles
+            # ensure at least some circles were foun
+        #    if circles is None:
+        #        continue
+        #        
+            if circles is not None:
+                # convert the (x, y) coordinates and radius of the circles to integers
+                circles = np.uint16(np.around(circles))
+                for i in circles[0,:]:
+                    # drawing on detected circle and its center
+                    if type(i) != np.ndarray:
+                        continue
+                    cv2.circle(frame,(i[0],i[1]),i[2],(0,255,0),2)
+                    cv2.circle(frame,(i[0],i[1]),2,(0,0,255),3)
+                    floor_circle_center=(i[0],i[1])
+        
+            cursor_points.appendleft(floor_circle_center)
+        
+            #deque object initialized left-to-right 
+            #Add x to the left side of the deque
+            #go through all the cursor_points in the buffer
+            for i in xrange(1, len(cursor_points)):
+                #i is current, i-1 is previous
+                #if either points are no value then ignore, this is to block out errors while the video runs
+                if cursor_points[i] is None or cursor_points[i-1] is None:
+                    continue
+                #thickness = float(0.25/(i+1))
+                thickness = int(np.sqrt(36 /float(i+1)) *2)
+                #to have a time fading effect the thickness will decrease over time
+                cv2.line(frame, cursor_points[i-1], cursor_points[i], (0,0,255), thickness)
+        #        #previous point to the curent point draw a line, based on time fading thickness       
+            cv2.imshow('circles', frame)
+            key=cv2.waitKey(100) & 0xFF
+            if key == ord("q"):
+                break
+        videocam.release()
+        cv2.destroyAllWindows()
+        
+        
+        
+    def bluetrack(self):
+        #boolblueflag =1
+        self.TrackColourCircle(self.videofile,self.buffersize, 1)
+#    elif args.get("colour")==2
+    def redtrack(self):
+        self.TrackColourCircle(self.videofile, self.buffersize, 0)
+        
+    def setvideo1(self):
+        self.videofile = "1.mp4"
+        print self.videofile, "selected"
+        self.labelv.config(text=self.videofile + " selected")
+    def setvideo2(self):
+        self.videofile = "2.mp4"
+        print self.videofile, "selected"
+        self.labelv.config(text=self.videofile + " selected")
+    def setvideo3(self):
+        self.videofile = "3.mp4"
+        print self.videofile, "selected"
+        self.labelv.config(text=self.videofile + " selected")
+    def setvideo4(self):
+        self.videofile = "4.mp4"
+        print self.videofile, "selected"
+        self.labelv.config(text=self.videofile + " selected")
+    def setvideo5(self):
+        self.videofile = "5.mp4"
+        print self.videofile, "selected"
+        self.labelv.config(text=self.videofile + " selected")
+        
+        
+
+    
+
+root = Tk()
+my_gui = HospitalGUI(root)
+root.mainloop()
