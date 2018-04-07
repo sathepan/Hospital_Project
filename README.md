@@ -1,6 +1,6 @@
 # Hospital_Project
 Sathepan Nagendrarajah (100454393), 
-Colour Tracking And Detecting Dotted Pathways for Hospital Emergencies
+Project Title: Colour Tracking And Detecting Dotted Pathways for Hospital Emergencies
 
 Abstract:
   In a society where we accept technological revolution and enhance performance of services in various industries, it is clear that medical industry, especially the hospitals have a lot of improvements that can be made. The way hospital systems organize the incoming patients can be handled more appropriately with technological advancements. Starting from the time patients are admitted into the ambulance, and from the time the patients are transported to the emergency wards, the average waiting time patients wait for treatment or operation, it can be seen that a lot of this time can be better scheduled to provide these medical services faster to patients.  
