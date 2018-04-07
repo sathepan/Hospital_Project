@@ -1,0 +1,174 @@
+from Tkinter import Tk, Label, Button
+import cv2
+import numpy as np
+#import imutils
+#used for rezing frame
+from collections import deque
+
+
+class HospitalGUI:
+    def __init__(self, master):
+        self.master = master
+        master.title("Contours Method")
+        
+        
+        self.labelf = Label(master, text="Choose your Selection of the Video to Track!")
+        self.labelf.pack()
+        
+        self.labelv = Label(master, text=self.videofile + " selected" )
+        self.labelv.pack()
+        
+        self.video1_button = Button(master, text="Video 1", command=self.setvideo1)
+        self.video1_button.pack()
+        
+        self.video2_button = Button(master, text="Video 2", command=self.setvideo2)
+        self.video2_button.pack()
+        
+        self.video3_button = Button(master, text="Video 3", command=self.setvideo3)
+        self.video3_button.pack()
+        
+        self.video4_button = Button(master, text="Video 4", command=self.setvideo4)
+        self.video4_button.pack()
+        
+        self.video5_button = Button(master, text="Video 5", command=self.setvideo5)
+        self.video5_button.pack()
+        
+        self.labelc = Label(master, text="Choose your Selection of Colour to Track!")
+        self.labelc.pack()
+
+        self.red_button = Button(master, text="Track Red", command=self.redtrack)
+        self.red_button.pack()
+        
+        self.blue_button = Button(master, text="Track Blue", command=self.bluetrack)
+        self.blue_button.pack()
+    
+    
+    videofile = "4.mp4"
+    buffersize = 64
+    
+    def TrackColourCircle(self, videofile, buffersize, boolblueflag):
+        videocam = cv2.VideoCapture(videofile)
+        cursor_points=deque(maxlen=buffersize)
+        
+        Upperbound_red=(10, 160, 160 )
+        Upperbound_blue=(130,255,255)
+        #Upperbound_red=(179, 255, 255)
+        #Lowerbound_red = (0, 125, 125)
+        Lowerbound_red = (0, 50, 50)
+        Lowerbound_blue = (110, 100, 100)
+        
+        while True:
+            (boolsuccess, frame) = videocam.read()
+            #2 parameters, first one says if the frame was successfully loaded
+            #The second parameter is the actual frame from the recording
+            #If I find that the successfully loaded parameter is set to false then that means the recording is done
+            if not boolsuccess:
+                break
+            #frame = cv2.resize(frame, (:, 500)) 
+            #frame=imutils.resize(frame, width = 500)
+            f_height, f_width, f_depth = frame.shape
+        #    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        #    GaussianFilter = cv2.GaussianBlur(gray_frame, (11, 11), 0)
+        #    th3 = cv2.adaptiveThreshold(GaussianFilter,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,11,2)
+            hsv_frame=cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            if boolblueflag==0:
+                ROI=cv2.inRange(hsv_frame, Lowerbound_red, Upperbound_red)
+            if boolblueflag==1:
+                ROI=cv2.inRange(hsv_frame, Lowerbound_blue, Upperbound_blue)
+            ROI=cv2.erode(ROI, None, iterations=3)
+            ROI=cv2.dilate(ROI, None, iterations=3)
+            res = cv2.bitwise_and(frame,frame, mask= ROI)
+            cv2.imshow("ROI", ROI)
+            cv2.imshow("result", res)
+            #No kernel so None
+            #Because, erosion removes white noises, but it also shrinks our object. So we dilate it.
+            #It is also useful in joining broken parts of an object.
+            ROI2=ROI.copy()
+            contours=cv2.findContours(ROI2, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
+            #irst one is source image, second is contour retrieval mode, third is contour approximation method
+            # contours is a Python list of all the contours in the image. Each individual contour is a Numpy array of (x,y) coordinates of boundary points of the object.
+            # https://docs.opencv.org/3.3.1/d4/d73/tutorial_py_contours_begin.html
+            #curve joining all the continuous points (along the boundary), having same color or intensity. The contours are a useful tool for shape analysis and object detection and recognition.
+            #Based on the number of countours of objects in the picture, we select the area of the object that is the largest in this ROI.
+            floor_circle_center = None # intialization of center needs to be here
+            #This will help with occulsion, even if its not a perfect circle
+            if len(contours)>0:
+                contours_Areamax2=sorted(contours, key=cv2.contourArea)[:2]
+                #calculating the area of the contour using cv2.contourArea
+                #largest object can be find out by comparing area of each object.
+                # https://en.wikipedia.org/wiki/Image_moment
+                for contours_Area in contours_Areamax2:
+                    ((x,y), radius) = cv2.minEnclosingCircle(contours_Area)
+                #find the circumcircle of an object using the function cv2.minEnclosingCircle(). It is a circle which completely covers the object with minimum area
+                #the output of center of circle
+                #the radius of the circle
+                    Moments=cv2.moments(contours_Area)
+                #The function computes moments of a vector shape or a rasterized shape.
+                #Centroid: { x, y } = {M10/M00, M01/M00 }
+                
+                    floor_circle_center=(int(Moments["m10"]/Moments["m00"]), int(Moments["m01"]/Moments["m00"] )   )
+                    if radius>5:
+                    #enclosing the floor circles with white circle
+                        cv2.circle(frame, (int(x), int(y)), int(radius), (255,255,255), 3)
+                        #The actual circles are the black circles
+                        cv2.circle(frame, floor_circle_center, 5, (0,0,0),-1)
+            cursor_points.appendleft(floor_circle_center)
+            #print(floor_circle_center)
+            #deque object initialized left-to-right 
+            #Add x to the left side of the deque
+            #go through all the cursor_points in the buffer
+            for i in xrange(1, len(cursor_points)):
+                #i is current, i-1 is previous
+                #if either points are no value then ignore, this is to block out errors while the video runs
+                if cursor_points[i] is None or cursor_points[i-1] is None:
+                    continue
+                #thickness = float(0.25/(i+1))
+                thickness = int(np.sqrt(36 /float(i+1)) *2)
+                #to have a time fading effect the thickness will decrease over time
+                cv2.line(frame, cursor_points[i-1], cursor_points[i], (0,0,255), thickness)
+        #        #previous point to the curent point draw a line, based on time fading thickness
+            cv2.imshow("Modified Frame", frame)
+            key=cv2.waitKey(100) & 0xFF
+            if key == ord("q"):
+                break
+        
+        videocam.release()
+        cv2.destroyAllWindows()
+        
+        
+        
+    def bluetrack(self):
+        #boolblueflag =1
+        self.TrackColourCircle(self.videofile,self.buffersize, 1)
+#    elif args.get("colour")==2
+    def redtrack(self):
+        self.TrackColourCircle(self.videofile, self.buffersize, 0)
+        
+    def setvideo1(self):
+        self.videofile = "1.mp4"
+        print self.videofile, "selected"
+        self.labelv.config(text=self.videofile + " selected")
+    def setvideo2(self):
+        self.videofile = "2.mp4"
+        print self.videofile, "selected"
+        self.labelv.config(text=self.videofile + " selected")
+    def setvideo3(self):
+        self.videofile = "3.mp4"
+        print self.videofile, "selected"
+        self.labelv.config(text=self.videofile + " selected")
+    def setvideo4(self):
+        self.videofile = "4.mp4"
+        print self.videofile, "selected"
+        self.labelv.config(text=self.videofile + " selected")
+    def setvideo5(self):
+        self.videofile = "5.mp4"
+        print self.videofile, "selected"
+        self.labelv.config(text=self.videofile + " selected")
+        
+        
+
+    
+
+root = Tk()
+my_gui = HospitalGUI(root)
+root.mainloop()
